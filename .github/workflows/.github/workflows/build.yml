@@ -1,0 +1,136 @@
+name: Build MPEV
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
+        modules: 'qtsvg'
+        cached: 'true'
+        
+    - name: Create build directory
+      run: mkdir build
+      
+    - name: Generate project files
+      working-directory: build
+      run: qmake ../MPEV.pro
+      
+    - name: Build project
+      working-directory: build
+      run: nmake
+      
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MPEV-Windows-x64
+        path: build/release/MPEV.exe
+        retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential qt6-base-dev qt6-svg-dev libqt6sql6-sqlite
+        
+    - name: Create build directory
+      run: mkdir build
+      
+    - name: Generate project files
+      working-directory: build
+      run: qmake6 ../MPEV.pro
+      
+    - name: Build project
+      working-directory: build
+      run: make -j$(nproc)
+      
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MPEV-Linux-x64
+        path: build/MPEV
+        retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.0'
+        host: 'mac'
+        target: 'desktop'
+        arch: 'macos'
+        modules: 'qtsvg'
+        cached: 'true'
+        
+    - name: Create build directory
+      run: mkdir build
+      
+    - name: Generate project files
+      working-directory: build
+      run: qmake ../MPEV.pro
+      
+    - name: Build project
+      working-directory: build
+      run: make -j$(sysctl -n hw.ncpu)
+      
+    - name: Create app bundle
+      run: |
+        mkdir -p MPEV.app/Contents/MacOS
+        mkdir -p MPEV.app/Contents/Resources
+        cp build/MPEV MPEV.app/Contents/MacOS/
+        
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MPEV-macOS
+        path: MPEV.app
+        retention-days: 30
+
+  release:
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          MPEV-Windows-x64/MPEV.exe
+          MPEV-Linux-x64/MPEV
+          MPEV-macOS/MPEV.app/**
+        tag_name: v${{ github.run_number }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

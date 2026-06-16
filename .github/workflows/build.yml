@@ -1,0 +1,108 @@
+name: Build MPEV
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+      
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.7.0'
+        host: 'windows'
+        target: 'desktop'
+        arch: 'win64_msvc2019_64'
+        
+    - name: Create build directory
+      run: mkdir build
+      
+    - name: Generate project files
+      working-directory: build
+      run: qmake ../MPEV.pro
+      
+    - name: Build project
+      working-directory: build
+      run: nmake
+      
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MPEV-Windows-x64
+        path: build/release/MPEV.exe
+        retention-days: 30
+
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential qt6-base-dev libqt6sql6-sqlite
+        
+    - name: Create build directory
+      run: mkdir build
+      
+    - name: Generate project files
+      working-directory: build
+      run: qmake6 ../MPEV.pro
+      
+    - name: Build project
+      working-directory: build
+      run: make -j$(nproc)
+      
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MPEV-Linux-x64
+        path: build/MPEV
+        retention-days: 30
+
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.7.0'
+        host: 'mac'
+        target: 'desktop'
+        arch: 'macos'
+        
+    - name: Create build directory
+      run: mkdir build
+      
+    - name: Generate project files
+      working-directory: build
+      run: qmake ../MPEV.pro
+      
+    - name: Build project
+      working-directory: build
+      run: make -j$(sysctl -n hw.ncpu)
+      
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MPEV-macOS
+        path: build/MPEV
+        retention-days: 30
