@@ -37,11 +37,14 @@ jobs:
       working-directory: build
       run: nmake
       
+    - name: Deploy Qt dependencies
+      run: windeployqt build/release/MPEV.exe
+      
     - name: Upload Windows artifact
       uses: actions/upload-artifact@v4
       with:
         name: MPEV-Windows-x64
-        path: build/release/MPEV.exe
+        path: build/release/
         retention-days: 30
 
   build-linux:
